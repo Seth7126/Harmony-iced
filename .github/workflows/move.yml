@@ -34,7 +34,7 @@ jobs:
       - name: 执行文件移动与目录清理
         run: |
           # 定义源目录路径
-          SOURCE_DIR="Harmony-iced/Harmony-2.4.2.0-main"
+          SOURCE_DIR="Harmony-2.4.2.0-main"
           
           # 检查源目录是否存在
           if [ -d "$SOURCE_DIR" ]; then

@@ -1,0 +1,79 @@
+# =============================================================================
+# 工作流目的说明：
+# 此工作流用于自动将仓库中指定子目录（Harmony-iced/Harmony-2.4.2.0-main/）下的所有文件
+# （包含常规文件与以点 . 开头的隐藏文件）彻底移动到代码仓库的根目录下。
+# 移动完成后，工作流会自动清理已经变为空文件夹的源目录，并将整个目录结构的变更
+# 提交并推送回远程代码仓库。
+# 
+# 触发条件：
+# 1. 当代码推送到 main 分支时自动触发。
+# 2. 支持在 GitHub Actions 界面手动点击按钮（workflow_dispatch）触发。
+# =============================================================================
+
+name: Move Directory Content to Root
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  move_files_job:
+    runs-on: ubuntu-22.04
+    # 防止 GitHub Actions 自身提交再次触发工作流，避免无限循环
+    if: github.actor != 'github-actions[bot]'
+
+    steps:
+      - name: 检出代码仓库
+        uses: actions/checkout@v4
+
+      - name: 执行文件移动与目录清理
+        run: |
+          # 定义源目录路径
+          SOURCE_DIR="Harmony-iced/Harmony-2.4.2.0-main"
+          
+          # 检查源目录是否存在
+          if [ -d "$SOURCE_DIR" ]; then
+            echo "源目录存在，开始执行移动操作..."
+            
+            # 开启 dotglob 设置，使 * 通配符能够匹配到隐藏文件
+            shopt -s dotglob
+            
+            # 将源目录下的所有内容移动到当前根目录
+            mv "$SOURCE_DIR"/* ./
+            
+            # 关闭 dotglob 设置，恢复正常的 Bash 行为
+            shopt -u dotglob
+            
+            echo "文件移动完成，开始清理空目录..."
+            # 删除已经变空的源子目录
+            rm -rf "$SOURCE_DIR"
+            
+            # 如果父目录 Harmony-iced 变为空目录，则一并将其删除
+            rmdir "Harmony-iced" 2>/dev/null || true
+          else
+            echo "错误: 未找到目标目录 $SOURCE_DIR，脚本终止。"
+            exit 1
+          fi
+
+      - name: 提交并推送目录结构变更
+        run: |
+          # 配置 Git 机器人用户信息
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # 检查暂存区和工作区是否有文件结构变动
+          # git add -A 会同时记录文件的添加、修改以及删除/移动状态
+          git add -A
+          
+          if ! git diff --staged --quiet; then
+            echo "检测到文件结构发生变化，正在提交变更..."
+            git commit -m "Chore: 将 Harmony-2.4.2.0-main 下的所有文件移动到根目录"
+            git push
+          else
+            echo "未检测到任何文件结构变动，无需提交。"
+          fi
